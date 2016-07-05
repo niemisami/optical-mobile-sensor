@@ -207,7 +207,6 @@ public class MainFragment extends android.app.Fragment
             mCameraDevice = null;
             getActivity().onBackPressed();
         }
-
     };
 
     private Size mPreviewSize;
@@ -363,9 +362,7 @@ public class MainFragment extends android.app.Fragment
             if (!mCameraOpenCloseLock.tryAcquire(2500, TimeUnit.MILLISECONDS)) {
                 throw new RuntimeException("Time out waiting to lock camera opening.");
             }
-
             manager.openCamera(mCameraId, mStateCallback, mBackgroundHandler);
-
 
         } catch (CameraAccessException e) {
             e.printStackTrace();
