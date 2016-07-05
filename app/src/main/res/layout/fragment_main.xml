@@ -1,0 +1,126 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                xmlns:app="http://schemas.android.com/apk/res-auto"
+                xmlns:tools="http://schemas.android.com/tools"
+                android:id="@+id/fragment_decoder_layout"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@color/black">
+
+    <ImageView
+        android:id="@+id/decoder_camera_guide_image"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentStart="true"
+        />
+
+    <RelativeLayout
+        android:id="@+id/radio_group_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true">
+
+        <RadioGroup xmlns:android="http://schemas.android.com/apk/res/android"
+                    android:id="@+id/radio_group_rgb"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerHorizontal="true"
+                    android:orientation="horizontal">
+
+            <RadioButton
+                android:id="@+id/radio_red"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="@dimen/activity_horizontal_margin"
+                android:checked="true"
+                android:text="Red"
+                android:theme="@style/RadioButtonTheme"/>
+
+            <RadioButton
+                android:id="@+id/radio_green"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="@dimen/activity_horizontal_margin"
+                android:text="Green"
+                android:theme="@style/RadioButtonTheme"/>
+
+            <RadioButton
+                android:id="@+id/radio_blue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="@dimen/activity_horizontal_margin"
+                android:text="Blue"
+                android:theme="@style/RadioButtonTheme"/>
+        </RadioGroup>
+    </RelativeLayout>
+
+    <RelativeLayout
+        android:id="@+id/image_scan_size_seekbar_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_above="@id/radio_group_container"
+        android:layout_margin="@dimen/activity_horizontal_margin">
+
+        <TextView
+            android:id="@+id/seek_bar_progress_unit"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:layout_marginStart="4dp"
+            android:text="px"/>
+
+        <TextView
+            android:id="@+id/seek_bar_progress"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerVertical="true"
+            android:layout_toStartOf="@id/seek_bar_progress_unit"
+            android:text="40"/>
+
+        <android.support.v7.widget.AppCompatSeekBar
+            android:id="@+id/image_scan_size_seekbar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_toStartOf="@id/seek_bar_progress"
+            android:padding="@dimen/activity_horizontal_margin"
+            android:progress="40"/>
+
+
+    </RelativeLayout>
+
+    <RelativeLayout
+        android:id="@+id/flash_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="@dimen/activity_horizontal_margin"
+        android:layout_above="@id/image_scan_size_seekbar_container">
+
+        <android.support.v7.widget.SwitchCompat
+            android:id="@+id/flash_toggle_switch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="@dimen/activity_horizontal_margin"
+            android:layout_centerVertical="true"
+            android:checked="true"/>
+
+        <ImageView
+            android:id="@+id/flash_icon"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_toEndOf="@id/flash_toggle_switch"
+            android:layout_centerVertical="true"
+            android:src="@drawable/flash_toggle"/>
+    </RelativeLayout>
+
+
+    <FrameLayout
+        android:id="@+id/graph_hrs"
+        android:layout_width="match_parent"
+        android:layout_height="220dp"
+        android:layout_above="@id/flash_container"
+        android:layout_marginLeft="@dimen/activity_horizontal_margin"
+        android:layout_marginRight="@dimen/activity_horizontal_margin"
+        android:layout_marginTop="10dp"/>
+
+
+</RelativeLayout>
