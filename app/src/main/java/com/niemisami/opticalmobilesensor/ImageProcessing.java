@@ -3,6 +3,8 @@ package com.niemisami.opticalmobilesensor;
 import android.graphics.Color;
 import android.media.Image;
 
+import com.niemisami.opticalmobilesensor.SignalProcessing.DSP;
+
 import java.nio.ByteBuffer;
 
 /**
@@ -147,25 +149,27 @@ public class ImageProcessing {
         return output;
     }
 
-    public static int calculateAverageOfColor(int color, int w, int h, int wOffset, int hOffset,
+    public static double calculateAverageOfColor(int color, int w, int h, int wOffset, int hOffset,
                                               Image yuvImage) {
         int[] colorArray = convertPixelYuvToRgba(w, h, wOffset, hOffset, yuvImage);
-        int average = 0;
+        int[] averages = new int[colorArray.length];
+        int index = 0;
         for (int i : colorArray) {
             switch (color) {
                 case 0: //Calculate average of selected color
-                    average += i;
+                    averages[index] = i;
+                    break;
                 case Color.RED:
-                    average += Color.red(i) * 100;
+                    averages[index] = Color.red(i) * 100;
                     break;
                 case Color.GREEN:
-                    average += Color.green(i) * 100;
+                    averages[index] = Color.green(i) * 100;
                     break;
                 case Color.BLUE:
-                    average += Color.blue(i) * 100;
+                    averages[index] = Color.blue(i) * 100;
                     break;
             }
         }
-        return average / colorArray.length;
+        return DSP.getWeightedAverage(averages);
     }
 }

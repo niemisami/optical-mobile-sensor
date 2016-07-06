@@ -103,6 +103,15 @@ public class LineGraphView {
 			mSeries.remove(0);
 		}
 	}
+	/**
+	 * add new double x,y value to chart
+	 */
+	public void addValue(double x, double y) {
+		mSeries.add(x,y);
+		if(mSeries.getItemCount() > 50) {
+			mSeries.remove(0);
+		}
+	}
 
 	/**
 	 * clear all previous values of chart

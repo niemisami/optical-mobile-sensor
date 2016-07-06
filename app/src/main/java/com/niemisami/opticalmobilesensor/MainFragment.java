@@ -541,9 +541,9 @@ public class MainFragment extends android.app.Fragment
         return statusBarHeight + titleBarHeight;
     }
 
-    private int mCounter = 0;
+    private double mCounter = 0.0;
     private final static int REFRESH_INTERVAL = 100; // 1 second interval
-    private int mAverageColor;
+    private double mAverageColor;
     private Handler mHandler = new Handler();
 
     private RadioGroup mRGBRadioGroup;
@@ -606,16 +606,14 @@ public class MainFragment extends android.app.Fragment
                 } catch (CameraAccessException e) {
                     e.printStackTrace();
                 }
-
-
             }
         });
 
     }
 
-    private void updateGraph(final int hrmValue) {
+    private void updateGraph(final double yValue) {
         mCounter++;
-        mLineGraph.addValue(new Point(mCounter, hrmValue));
+        mLineGraph.addValue(mCounter, yValue);
         mGraphView.repaint();
     }
 
@@ -633,20 +631,17 @@ public class MainFragment extends android.app.Fragment
         // Check which radio button was clicked
         switch (checkedId) {
             case R.id.radio_red:
-
                 Log.d(TAG, "onCheckedChanged: red");
                 if (checked)
                     mWantedRGBColor = Color.RED;
                 break;
             case R.id.radio_green:
                 Log.d(TAG, "onCheckedChanged: green");
-
                 if (checked)
                     mWantedRGBColor = Color.GREEN;
                 break;
             case R.id.radio_blue:
                 Log.d(TAG, "onCheckedChanged: blue");
-
                 if (checked)
                     mWantedRGBColor = Color.BLUE;
                 break;
