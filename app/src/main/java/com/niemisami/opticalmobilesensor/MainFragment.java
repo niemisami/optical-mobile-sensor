@@ -1,14 +1,9 @@
 package com.niemisami.opticalmobilesensor;
 
 
-import android.Manifest;
-import android.content.Context;
-import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.ImageFormat;
 import android.graphics.Matrix;
-import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.SurfaceTexture;
@@ -27,10 +22,7 @@ import android.media.ImageReader;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.support.v13.app.FragmentCompat;
-import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.Fragment;
-import android.support.v4.content.ContextCompat;
 import android.support.v7.widget.AppCompatSeekBar;
 import android.support.v7.widget.SwitchCompat;
 import android.util.Log;
@@ -51,6 +43,10 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.zxing.Result;
+import com.niemisami.opticalmobilesensor.utils.ColorAverageFileWriter;
+import com.niemisami.opticalmobilesensor.utils.ImageProcessing;
+import com.niemisami.opticalmobilesensor.views.AutoFitTextureView;
+import com.niemisami.opticalmobilesensor.views.LineGraphView;
 
 import org.achartengine.GraphicalView;
 
@@ -72,8 +68,8 @@ import static android.hardware.camera2.CaptureRequest.CONTROL_AF_MODE;
 /**
  * A simple {@link Fragment} subclass.
  */
-public class MainFragment extends android.app.Fragment
-        implements RadioGroup.OnCheckedChangeListener, AppCompatSeekBar.OnSeekBarChangeListener {
+public class MainFragment extends Fragment
+        implements RadioGroup.OnCheckedChangeListener{
     private static final int sImageFormat = ImageFormat.YUV_420_888;
 
     private int mWantedRGBColor = Color.RED;
@@ -158,7 +154,7 @@ public class MainFragment extends android.app.Fragment
 
                         RectF yuvDimens = new RectF(0, 0, img.getWidth(),
                                 img.getHeight());
-                        final int PATCH_DIMEN = mScannableArea; // pixels in YUV
+                        final int PATCH_DIMEN = SCANNABLE_AREA; // pixels in YUV
                         // Find matching square patch of pixels in YUV and JPEG output
                         RectF tempPatch = new RectF(0, 0, PATCH_DIMEN, PATCH_DIMEN);
                         tempPatch.offset(yuvDimens.centerX() - tempPatch.centerX(),
@@ -168,7 +164,13 @@ public class MainFragment extends android.app.Fragment
 
                         mAverageColor = ImageProcessing.calculateAverageOfColor(mWantedRGBColor, yuvPatch.width(),
                                 yuvPatch.height(), yuvPatch.left, yuvPatch.top, img);
-//                        Log.d(TAG, "" + yuvColors);
+
+                        mFileBackgroundHandler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                mColorWriter.write(mAverageColor);
+                            }
+                        });
 
 //                        ImageProcessing.convertPixelYuvToRgba(width, height, 0,0, img);
 
@@ -180,6 +182,7 @@ public class MainFragment extends android.app.Fragment
                     }
                 }
             };
+
     private CameraCaptureSession mCaptureSession;
     private CameraDevice mCameraDevice;
     private final CameraDevice.StateCallback mStateCallback = new CameraDevice.StateCallback() {
@@ -210,13 +213,16 @@ public class MainFragment extends android.app.Fragment
     };
 
     private Size mPreviewSize;
-    private HandlerThread mBackgroundThread;
-    private Handler mBackgroundHandler;
+    private HandlerThread mCameraBackgroundThread, mFileBackgroundThread;
+    private Handler mCameraBackgroundHandler, mFileBackgroundHandler;
     private ImageReader mImageReader;
     private CaptureRequest.Builder mPreviewRequestBuilder;
     private CaptureRequest mPreviewRequest;
     private Semaphore mCameraOpenCloseLock = new Semaphore(1);
     private int count;
+
+
+    private ColorAverageFileWriter mColorWriter;
 
     /**
      * Given {@code choices} of {@code Size}s supported by a camera, chooses the smallest one whose
@@ -251,7 +257,6 @@ public class MainFragment extends android.app.Fragment
         }
     }
 
-
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
@@ -268,13 +273,16 @@ public class MainFragment extends android.app.Fragment
             public void run() {
                 if (layout.getChildAt(0) == mTextureView) return;
                 layout.addView(mTextureView, 0);
-                startBackgroundThread();
+                startBackgroundThreads();
             }
         }, 700);
+
+        initFileWriter();
         initGraph(rootView);
         initRadioButtons(rootView);
         initSeekBar(rootView);
         initFlashLightView(rootView);
+
         return rootView;
     }
 
@@ -298,8 +306,9 @@ public class MainFragment extends android.app.Fragment
     public void onPause() {
         Log.e(TAG, "onPause");
         closeCamera();
-        stopBackgroundThread();
+        stopBackgroundThreads();
         mHandler.removeCallbacks(mRepeatTask);
+        mColorWriter.close();
         super.onPause();
     }
 
@@ -326,7 +335,7 @@ public class MainFragment extends android.app.Fragment
                 Size largest = Collections.max(outputSizes, new CompareSizesByArea());
 
                 mImageReader = ImageReader.newInstance(largest.getWidth() / 16, largest.getWidth() / 16, sImageFormat, 2);
-                mImageReader.setOnImageAvailableListener(mOnImageAvailableListener, mBackgroundHandler);
+                mImageReader.setOnImageAvailableListener(mOnImageAvailableListener, mCameraBackgroundHandler);
                 // Danger, W.R.! Attempting to use too large a preview size could exceed the camera
                 // bus' bandwidth limitation, resulting in gorgeous previews but the storage of
                 // garbage capture data.
@@ -339,6 +348,8 @@ public class MainFragment extends android.app.Fragment
 //                if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
 //                    mTextureView.setAspectRatio(mPreviewSize.getWidth(), mPreviewSize.getHeight());
 //                } else {
+                Log.d(TAG, "setUpCameraOutputs: " + MainActivity.screenParametersPoint.x + " " +
+                        MainActivity.screenParametersPoint.y);
                 mTextureView.setAspectRatio(MainActivity.screenParametersPoint.x,
                         MainActivity.screenParametersPoint.y - getStatusBarHeight()); //portrait only
 //                }
@@ -362,7 +373,7 @@ public class MainFragment extends android.app.Fragment
             if (!mCameraOpenCloseLock.tryAcquire(2500, TimeUnit.MILLISECONDS)) {
                 throw new RuntimeException("Time out waiting to lock camera opening.");
             }
-            manager.openCamera(mCameraId, mStateCallback, mBackgroundHandler);
+            manager.openCamera(mCameraId, mStateCallback, mCameraBackgroundHandler);
 
         } catch (CameraAccessException e) {
             e.printStackTrace();
@@ -399,29 +410,47 @@ public class MainFragment extends android.app.Fragment
     /**
      * Starts a background thread and its {@link Handler}.
      */
-    private void startBackgroundThread() {
-        mBackgroundThread = new HandlerThread("CameraBackground");
-        mBackgroundThread.start();
-        mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
+    private void startBackgroundThreads() {
+        mCameraBackgroundThread = new HandlerThread("CameraBackground");
+        mCameraBackgroundThread.start();
+        mCameraBackgroundHandler = new Handler(mCameraBackgroundThread.getLooper());
+
+        mFileBackgroundThread = new HandlerThread("FileWriterBackground");
+        mFileBackgroundThread.start();
+        mFileBackgroundHandler = new Handler(mFileBackgroundThread.getLooper());
     }
+
 
     /**
      * Stops the background thread and its {@link Handler}.
      */
-    private void stopBackgroundThread() {
+    private void stopBackgroundThreads() {
         try {
-            mBackgroundThread.quitSafely();
-            mBackgroundThread.join();
-            mBackgroundThread = null;
-            mBackgroundHandler = null;
+            mCameraBackgroundHandler.removeCallbacksAndMessages(null);
+            mCameraBackgroundThread.quitSafely();
+            mCameraBackgroundThread.join();
+            mCameraBackgroundThread = null;
+            mCameraBackgroundHandler = null;
+
+            mFileBackgroundHandler.removeCallbacksAndMessages(null);
+            mFileBackgroundThread.quitSafely();
+            mFileBackgroundThread.join();
+            mFileBackgroundThread = null;
+            mFileBackgroundHandler = null;
         } catch (InterruptedException e) {
             e.printStackTrace();
-            mBackgroundThread = null;
-            mBackgroundHandler = null;
-        } catch (NullPointerException ex) {
-            ex.printStackTrace();
-            mBackgroundThread = null;
-            mBackgroundHandler = null;
+            mCameraBackgroundThread = null;
+            mCameraBackgroundHandler = null;
+
+            mFileBackgroundThread = null;
+            mFileBackgroundHandler = null;
+        } catch (NullPointerException e) {
+            e.printStackTrace();
+            mCameraBackgroundThread = null;
+            mCameraBackgroundHandler = null;
+
+            mFileBackgroundThread = null;
+            mFileBackgroundHandler = null;
         }
     }
 
@@ -466,7 +495,7 @@ public class MainFragment extends android.app.Fragment
                                 // Finally, we start displaying the camera preview.
                                 mPreviewRequest = mPreviewRequestBuilder.build();
                                 mCaptureSession.setRepeatingRequest(mPreviewRequest, mCaptureCallback,
-                                        mBackgroundHandler);
+                                        mCameraBackgroundHandler);
                             } catch (CameraAccessException e) {
                                 e.printStackTrace();
                             }
@@ -525,7 +554,6 @@ public class MainFragment extends android.app.Fragment
             return Long.signum((long) lhs.getWidth() * lhs.getHeight() -
                     (long) rhs.getWidth() * rhs.getHeight());
         }
-
     }
 
     public int getStatusBarHeight() {
@@ -542,16 +570,14 @@ public class MainFragment extends android.app.Fragment
     }
 
     private double mCounter = 0.0;
-    private final static int REFRESH_INTERVAL = 100; // 1 second interval
+    private int REFRESH_INTERVAL = 100; // 1 second interval
     private double mAverageColor;
     private Handler mHandler = new Handler();
 
-    private RadioGroup mRGBRadioGroup;
     private ViewGroup mGraphLayout;
 
-    private AppCompatSeekBar mSeekBar;
-    private TextView mScannableAreaTextView;
-    private int mScannableArea = 40;
+    private TextView mScannableAreaTextView, mGraphRefreshRateTextView;
+    private int SCANNABLE_AREA = 40;
 
     private ImageView mFlashIcon;
     private SwitchCompat mFlashSwitch;
@@ -573,13 +599,17 @@ public class MainFragment extends android.app.Fragment
 
     private void initSeekBar(View view) {
         mScannableAreaTextView = (TextView) view.findViewById(R.id.seek_bar_progress);
-        mSeekBar = (AppCompatSeekBar) view.findViewById(R.id.image_scan_size_seekbar);
-        mSeekBar.setOnSeekBarChangeListener(this);
+        AppCompatSeekBar scanAreaSeekBar = (AppCompatSeekBar) view.findViewById(R.id.image_scan_size_seekbar);
+        scanAreaSeekBar.setOnSeekBarChangeListener(mOnScanAreaSeekBarChangeListener);
+
+        mGraphRefreshRateTextView = (TextView) view.findViewById(R.id.graph_refresh_rate_progress);
+        AppCompatSeekBar graphRefreshRateSeekBar = (AppCompatSeekBar) view.findViewById(R.id.graph_refresh_rate_seek_bar);
+        graphRefreshRateSeekBar.setOnSeekBarChangeListener(mOnRefreshRateSeekBarChangeListener);
     }
 
     private void initRadioButtons(View view) {
-        mRGBRadioGroup = (RadioGroup) view.findViewById(R.id.radio_group_rgb);
-        mRGBRadioGroup.setOnCheckedChangeListener(this);
+        RadioGroup RGBRadioGroup = (RadioGroup) view.findViewById(R.id.radio_group_rgb);
+        RGBRadioGroup.setOnCheckedChangeListener(this);
     }
 
     private void initFlashLightView(View view) {
@@ -595,12 +625,12 @@ public class MainFragment extends android.app.Fragment
                     if (isChecked) {
                         mPreviewRequestBuilder.set(CaptureRequest.FLASH_MODE, CameraMetadata.FLASH_MODE_TORCH);
                         mCaptureSession.setRepeatingRequest(mPreviewRequestBuilder.build(), mCaptureCallback,
-                                mBackgroundHandler);
+                                mCameraBackgroundHandler);
                         mFlashIcon.setImageLevel(1);
                     } else {
                         mPreviewRequestBuilder.set(CaptureRequest.FLASH_MODE, CameraMetadata.FLASH_MODE_OFF);
                         mCaptureSession.setRepeatingRequest(mPreviewRequestBuilder.build(), mCaptureCallback,
-                                mBackgroundHandler);
+                                mCameraBackgroundHandler);
                         mFlashIcon.setImageLevel(0);
                     }
                 } catch (CameraAccessException e) {
@@ -649,22 +679,46 @@ public class MainFragment extends android.app.Fragment
         reinitGraph();
     }
 
-    @Override
-    public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-        if (fromUser && progress > 1) {
-            mScannableArea = progress;
-            mScannableAreaTextView.setText(Integer.toString(progress));
+
+    public SeekBar.OnSeekBarChangeListener mOnScanAreaSeekBarChangeListener = new SeekBar.OnSeekBarChangeListener() {
+        @Override
+        public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+            if (fromUser && progress > 1) {
+                mScannableAreaTextView.setText(Integer.toString(progress));
+            }
         }
+        @Override
+        public void onStartTrackingTouch(SeekBar seekBar) {
+        }
+
+        @Override
+        public void onStopTrackingTouch(SeekBar seekBar) {
+            if (seekBar.getProgress() > 1) {
+                SCANNABLE_AREA = seekBar.getProgress();
+            }
+        }
+    };
+    public SeekBar.OnSeekBarChangeListener mOnRefreshRateSeekBarChangeListener = new SeekBar.OnSeekBarChangeListener() {
+        @Override
+        public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+            if (fromUser && progress > 1) {
+                mGraphRefreshRateTextView.setText(Integer.toString(progress));
+            }
+        }
+        @Override
+        public void onStartTrackingTouch(SeekBar seekBar) {
+        }
+
+        @Override
+        public void onStopTrackingTouch(SeekBar seekBar) {
+            if (seekBar.getProgress() > 1) {
+                REFRESH_INTERVAL = 1000 / seekBar.getProgress();
+            }
+        }
+    };
+
+    private void initFileWriter() {
+        mColorWriter = new ColorAverageFileWriter(getActivity(),"testing");
     }
 
-    @Override
-    public void onStartTrackingTouch(SeekBar seekBar) {
-    }
-
-    @Override
-    public void onStopTrackingTouch(SeekBar seekBar) {
-        if (seekBar.getProgress() > 1) {
-            mScannableArea = seekBar.getProgress();
-        }
-    }
 }

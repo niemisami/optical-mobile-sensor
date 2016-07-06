@@ -85,6 +85,38 @@
             android:padding="@dimen/activity_horizontal_margin"
             android:progress="40"/>
 
+    </RelativeLayout>
+    <RelativeLayout
+        android:id="@+id/graph_refresh_rate_seek_bar_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_above="@id/image_scan_size_seekbar_container"
+        android:layout_margin="@dimen/activity_horizontal_margin">
+
+        <TextView
+            android:id="@+id/graph_refresh_rate_progress_unit"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:layout_marginStart="4dp"
+            android:text="fps"/>
+
+        <TextView
+            android:id="@+id/graph_refresh_rate_progress"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerVertical="true"
+            android:layout_toStartOf="@id/graph_refresh_rate_progress_unit"
+            android:text="24"/>
+
+        <android.support.v7.widget.AppCompatSeekBar
+            android:id="@+id/graph_refresh_rate_seek_bar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_toStartOf="@id/graph_refresh_rate_progress"
+            android:padding="@dimen/activity_horizontal_margin"
+            android:progress="40"/>
 
     </RelativeLayout>
 
@@ -93,7 +125,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_margin="@dimen/activity_horizontal_margin"
-        android:layout_above="@id/image_scan_size_seekbar_container">
+        android:layout_above="@id/graph_refresh_rate_seek_bar_container">
 
         <android.support.v7.widget.SwitchCompat
             android:id="@+id/flash_toggle_switch"

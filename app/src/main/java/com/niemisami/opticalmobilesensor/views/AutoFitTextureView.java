@@ -1,4 +1,4 @@
-package com.niemisami.opticalmobilesensor;
+package com.niemisami.opticalmobilesensor.views;
 
 /**
  * AutoFitTextureView.class

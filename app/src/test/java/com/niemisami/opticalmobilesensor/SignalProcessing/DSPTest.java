@@ -7,9 +7,9 @@ import org.junit.Assert;
  */
 public class DSPTest {
 
-    private int[] values = new int[]{1,1,1,1,2,2,2,3,3,5,0,0,1,0,4,4,3,7};
+    private int[] values = new int[]{1,1,1,1,2,2,2,3,3,5,0,0,1,0,4,4,3,7,7};
     private int[] instances = new int[] {1,2,3,5,0,4,7};
-    private int[] weights = new int[]   {5,3,3,1,3,2,1};
+    private int[] weights = new int[]   {5,3,3,1,3,2,2};
 
 
 
@@ -28,12 +28,12 @@ public class DSPTest {
 
     @org.junit.Test
     public void testGetWeightedAverage() throws Exception {
-        Assert.assertEquals(1.81, DSP.getWeightedAverage(values),0.1);
+        Assert.assertEquals(2.4, DSP.getWeightedAverage(values),0.1);
 
     }
     @org.junit.Test
     public void testGetAverage() throws Exception {
-        Assert.assertEquals(2.2, DSP.getAverage(values), 0.1);
+        Assert.assertEquals(2.4, DSP.getAverage(values), 0.1);
     }
 
 }

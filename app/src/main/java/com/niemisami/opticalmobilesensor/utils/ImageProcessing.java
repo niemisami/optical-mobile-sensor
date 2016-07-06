@@ -1,4 +1,4 @@
-package com.niemisami.opticalmobilesensor;
+package com.niemisami.opticalmobilesensor.utils;
 
 import android.graphics.Color;
 import android.media.Image;
@@ -9,9 +9,11 @@ import java.nio.ByteBuffer;
 
 /**
  * Created by sakrnie on 20.6.2016.
+ * Contains different algorithms for extracting YUV-planes to RGB
  */
 public class ImageProcessing {
 
+    private static final String TAG = ImageProcessing.class.getSimpleName();
 
 
     private static int decodeYUV420SPtoRedSum(byte[] yuv420sp, int width, int height) {
@@ -160,16 +162,17 @@ public class ImageProcessing {
                     averages[index] = i;
                     break;
                 case Color.RED:
-                    averages[index] = Color.red(i) * 100;
+                    averages[index] = Color.red(i);
                     break;
                 case Color.GREEN:
-                    averages[index] = Color.green(i) * 100;
+                    averages[index] = Color.green(i);
                     break;
                 case Color.BLUE:
-                    averages[index] = Color.blue(i) * 100;
+                    averages[index] = Color.blue(i);
                     break;
             }
+            index++;
         }
-        return DSP.getWeightedAverage(averages);
+        return DSP.getAverage(averages);
     }
 }

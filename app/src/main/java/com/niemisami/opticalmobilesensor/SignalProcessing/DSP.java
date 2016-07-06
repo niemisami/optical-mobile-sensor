@@ -10,7 +10,6 @@ public class DSP {
 
 
     public static double getWeightedAverage(int[] array) {
-
         int[] instances = getInstances(array);
         int[] weights = getWeights(instances, array);
 
@@ -21,7 +20,7 @@ public class DSP {
         double sumWeightedInstances = 0.0;
         double sumInstances = 0.0;
         for (int i = 0; i < instances.length; i++) {
-            sumInstances += instances[i];
+            sumInstances += weights[i];
             sumWeightedInstances += instances[i] * weights[i];
         }
 
@@ -29,12 +28,10 @@ public class DSP {
     }
 
     public static double getAverage(int[] array) {
-
         double sum = 0.0;
         for (int i = 0; i < array.length; i++) {
             sum += array[i];
         }
-
         return sum / array.length;
     }
 
@@ -51,7 +48,6 @@ public class DSP {
         }
         return weights;
     }
-
 
     public static int[] getInstances(int[] values) {
 //        int[] instances = new int[values.length];
