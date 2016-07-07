@@ -24,6 +24,7 @@ public class MainActivity extends AppCompatActivity {
         getWindowManager().getDefaultDisplay().getSize(screenParametersPoint);
         if(requirePermissions()) {
             inflateFragments();
+
         }
     }
 
