@@ -231,45 +231,105 @@ public class ImageProcessing {
 
         float[] HSV = new float[3];
         Color.RGBToHSV(reds / rgb.length, greens / rgb.length, blues / rgb.length, HSV);
-//        Log.d(TAG, "calculateAverageHueValueFromImage: " + (reds / rgb.length) + " " +  (greens / rgb.length) + " "  + blues / rgb.length);
-//        Log.d(TAG, "calculateAverageHueValueFromImage: " + HSV[0]);
+
         return HSV[0];
-//        return reds/(float)rgb.length;
     }
 
-    public static void doThings(Image image, int height, int width) {
-        byte[] yuvBytes = imageToByteArray(image);
-        int[] rgbValues = new int[height*width];
+    public static float calculateAverageColor(Image image, int height, int width) {
 
-        decodeYUV420SP(rgbValues, yuvBytes, width,height);
-        int sum = 0;
-        for(int i : rgbValues) {
-            sum += Color.red(i);
+        int[] mRgbBuffer = new int[height * width];
+
+        final Image.Plane[] planes = image.getPlanes();
+        final int total = planes[0].getRowStride() * height;
+        if (mRgbBuffer.length < total) {
+            mRgbBuffer = new int[total];
         }
 
-        Log.d(TAG, "doThings: " + (sum/rgbValues.length));
+        long start = System.currentTimeMillis();
+        getRGBIntFromPlanes(mRgbBuffer, height, planes);
+        Log.d(TAG, "onImageAvailable: " + (System.currentTimeMillis() -start));
+        image.close();
+
+        int sum = 0;
+        for (int i : mRgbBuffer) {
+            sum += Color.green(i);
+        }
+
+        float length = (float) mRgbBuffer.length;
+        return sum / length;
+    }
+
+    private static float[] rgbToHSV(int[] mRgbBuffer) {
+        int reds = 0;
+        int greens = 0;
+        int blues = 0;
+        for (int color : mRgbBuffer) {
+            reds += Color.red(color);
+            greens += Color.green(color);
+            blues += Color.blue(color);
+        }
+
+        float[] HSV = new float[3];
+        Color.RGBToHSV(reds / mRgbBuffer.length, greens / mRgbBuffer.length, blues / mRgbBuffer.length, HSV);
+//        Log.d(TAG, "calculateAverageHueValueFromImage: " + (reds / rgb.length) + " " +  (greens / rgb.length) + " "  + blues / rgb.length);
+//        Log.d(TAG, "calculateAverageHueValueFromImage: " + HSV[0]);
+        return HSV;
+    }
+
+    /**
+     * Found nice convertion algorithm from http://werner-dittmann.blogspot.fi/
+     */
+    private static void getRGBIntFromPlanes(int[] mRgbBuffer, int height, Image.Plane[] planes) {
+        ByteBuffer yPlane = planes[0].getBuffer();
+        ByteBuffer uPlane = planes[1].getBuffer();
+        ByteBuffer vPlane = planes[2].getBuffer();
+
+        int bufferIndex = 0;
+        final int total = yPlane.capacity();
+        final int uvCapacity = uPlane.capacity();
+        final int width = planes[0].getRowStride();
+
+        int yPos = 0;
+        for (int i = 0; i < height; i++) {
+            int uvPos = (i >> 1) * width;
+
+            for (int j = 0; j < width; j++) {
+                if (uvPos >= uvCapacity - 1)
+                    break;
+                if (yPos >= total)
+                    break;
+
+                final int y1 = yPlane.get(yPos++) & 0xff;
+
+                final int u = (uPlane.get(uvPos) & 0xff) - 128;
+                final int v = (vPlane.get(uvPos) & 0xff) - 128;
+                if ((j & 1) == 1) {
+                    uvPos += 2;
+                }
+
+                // This is the integer variant to convert YCbCr to RGB, NTSC values.
+                // formulae found at
+                // https://software.intel.com/en-us/android/articles/trusted-tools-in-the-new-android-world-optimization-techniques-from-intel-sse-intrinsics-to
+                // and on StackOverflow etc.
+                final int y1192 = 1192 * y1;
+                int r = (y1192 + 1634 * v);
+                int g = (y1192 - 833 * v - 400 * u);
+                int b = (y1192 + 2066 * u);
+
+                r = (r < 0) ? 0 : ((r > 262143) ? 262143 : r);
+                g = (g < 0) ? 0 : ((g > 262143) ? 262143 : g);
+                b = (b < 0) ? 0 : ((b > 262143) ? 262143 : b);
+
+                mRgbBuffer[bufferIndex++] = ((r << 6) & 0xff0000) |
+                        ((g >> 2) & 0xff00) |
+                        ((b >> 10) & 0xff);
+            }
+        }
     }
 
 
     public static byte[] imageToByteArray(Image image) {
         Image.Plane[] planes = image.getPlanes();
-//
-//        byte[] imageData = new byte[image.getWidth() * image.getHeight() * ImageFormat.getBitsPerPixel(ImageFormat.YUV_420_888) / 8];
-//
-//        ByteBuffer buffer = planes[0].getBuffer();
-//        int lastIndex = buffer.remaining();
-//        buffer.get(imageData, 0, lastIndex);
-//        int pixelStride = planes[1].getPixelStride();
-//
-//        for (int i = 1; i < planes.length; i++) {
-//            buffer = planes[i].getBuffer();
-//            byte[] planeData = new byte[buffer.remaining()];
-//            buffer.get(planeData);
-//
-//            for (int j = 0; j < planeData.length; j += pixelStride) {
-//                imageData[lastIndex++] = planeData[j];
-//            }
-//        }
 
         Image.Plane planeY = planes[0];
         Image.Plane planeU = planes[1];
@@ -288,60 +348,5 @@ public class ImageProcessing {
         return yuvData;
     }
 
-//    private void getRGBIntFromPlanes(Image.Plane[] planes) {
-//        ByteBuffer yPlane = planes[0].getBuffer();
-//        ByteBuffer uPlane = planes[1].getBuffer();
-//        ByteBuffer vPlane = planes[2].getBuffer();
-//
-//        int bufferIndex = 0;
-//        final int total = yPlane.capacity();
-//        final int uvCapacity = uPlane.capacity();
-//        final int width = planes[0].getRowStride();
-//
-//        int yPos = 0;
-//        for (int i = 0; i < mHeight; i++) {
-//            int uvPos = (i >> 1) * width;
-//
-//            for (int j = 0; j < width; j++) {
-//                if (uvPos >= uvCapacity-1)
-//                    break;
-//                if (yPos >= total)
-//                    break;
-//
-//                final int y1 = yPlane.get(yPos++) & 0xff;
-//
-//            /*
-//              The ordering of the u (Cb) and v (Cr) bytes inside the planes is a
-//              bit strange. The _first_ byte of the u-plane and the _second_ byte
-//              of the v-plane build the u/v pair and belong to the first two pixels
-//              (y-bytes), thus usual YUV 420 behavior. What the Android devs did
-//              here (IMHO): just copy the interleaved NV21 U/V data to two planes
-//              but keep the offset of the interleaving.
-//             */
-//                final int u = (uPlane.get(uvPos) & 0xff) - 128;
-//                final int v = (vPlane.get(uvPos+1) & 0xff) - 128;
-//                if ((j & 1) == 1) {
-//                    uvPos += 2;
-//                }
-//
-//                // This is the integer variant to convert YCbCr to RGB, NTSC values.
-//                // formulae found at
-//                // https://software.intel.com/en-us/android/articles/trusted-tools-in-the-new-android-world-optimization-techniques-from-intel-sse-intrinsics-to
-//                // and on StackOverflow etc.
-//                final int y1192 = 1192 * y1;
-//                int r = (y1192 + 1634 * v);
-//                int g = (y1192 - 833 * v - 400 * u);
-//                int b = (y1192 + 2066 * u);
-//
-//                r = (r < 0) ? 0 : ((r > 262143) ? 262143 : r);
-//                g = (g < 0) ? 0 : ((g > 262143) ? 262143 : g);
-//                b = (b < 0) ? 0 : ((b > 262143) ? 262143 : b);
-//
-//                mRgbBuffer[bufferIndex++] = ((r << 6) & 0xff0000) |
-//                        ((g >> 2) & 0xff00) |
-//                        ((b >> 10) & 0xff);
-//            }
-//        }
-//    }
 
 }
