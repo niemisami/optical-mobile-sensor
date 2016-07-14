@@ -282,8 +282,8 @@ public class MainFragment extends Fragment
                     Image img = reader.acquireLatestImage();
                     try {
                         if (img == null) throw new NullPointerException("cannot be null");
-
-                        ImageProcessing.doThings(img, reader.getHeight(), reader.getWidth());
+                        AVERAGE_COLOR = ImageProcessing.calculateAverageColor(mWantedRGBColor, img, reader.getHeight(), reader.getWidth());
+                        mFileBackgroundHandler.post(mFileWriteTask);
                     } catch (NullPointerException e) {
                         Log.e(TAG, "onImageAvailable: ", e);
                     } finally {
