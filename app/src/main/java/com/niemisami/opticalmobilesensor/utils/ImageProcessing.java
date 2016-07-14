@@ -2,7 +2,6 @@ package com.niemisami.opticalmobilesensor.utils;
 
 import android.graphics.Color;
 import android.media.Image;
-import android.util.Log;
 
 import com.niemisami.opticalmobilesensor.SignalProcessing.DSP;
 
@@ -235,7 +234,7 @@ public class ImageProcessing {
         return HSV[0];
     }
 
-    public static float calculateAverageColor(Image image, int height, int width) {
+    public static float calculateAverageColor(int color, Image image, int height, int width) {
 
         int[] mRgbBuffer = new int[height * width];
 
@@ -245,18 +244,26 @@ public class ImageProcessing {
             mRgbBuffer = new int[total];
         }
 
-        long start = System.currentTimeMillis();
         getRGBIntFromPlanes(mRgbBuffer, height, planes);
-        Log.d(TAG, "onImageAvailable: " + (System.currentTimeMillis() -start));
         image.close();
 
-        int sum = 0;
+        int averageColor = 0;
         for (int i : mRgbBuffer) {
-            sum += Color.green(i);
+            switch (color) {
+                case Color.RED:
+                    averageColor += Color.red(i);
+                    break;
+                case Color.GREEN:
+                    averageColor += Color.green(i);
+                    break;
+                case Color.BLUE:
+                    averageColor += Color.blue(i);
+                    break;
+            }
         }
 
         float length = (float) mRgbBuffer.length;
-        return sum / length;
+        return averageColor / length;
     }
 
     private static float[] rgbToHSV(int[] mRgbBuffer) {
