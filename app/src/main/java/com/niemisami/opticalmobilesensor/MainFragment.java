@@ -51,8 +51,8 @@ public class MainFragment extends Fragment
 
     public static boolean accessGranted = true;
     private ColorAverageFileWriter mColorWriter;
-    private HandlerThread mFileBackgroundThread;
-    private Handler mFileBackgroundHandler;
+    private HandlerThread mFileBackgroundThread, mBackgroundImageProcessingThread;
+    private Handler mFileBackgroundHandler, mBackgroundImageProsessingHandler;
 
     private AutoFitTextureView mTextureView;
 
@@ -64,7 +64,8 @@ public class MainFragment extends Fragment
         View rootView = inflater.inflate(R.layout.fragment_main, container, false);
 
         mTextureView = new AutoFitTextureView(getActivity());
-        ViewGroup.LayoutParams layoutParams = new ViewGroup.LayoutParams(100, 100);
+//        ViewGroup.LayoutParams layoutParams = new ViewGroup.LayoutParams(128, 96);
+        ViewGroup.LayoutParams layoutParams = new ViewGroup.LayoutParams(144,144);
         mTextureView.setLayoutParams(layoutParams);
         final RelativeLayout layout = (RelativeLayout) rootView.findViewById(R.id.fragment_decoder_layout);
         mCameraHelper = new CameraHelper(getActivity(), mTextureView, mOnImageAvailableListener);
@@ -149,6 +150,10 @@ public class MainFragment extends Fragment
         mFileBackgroundThread = new HandlerThread("FileWriterBackground");
         mFileBackgroundThread.start();
         mFileBackgroundHandler = new Handler(mFileBackgroundThread.getLooper());
+
+        mBackgroundImageProcessingThread = new HandlerThread("ImageProcessingBackground");
+        mBackgroundImageProcessingThread.start();
+        mBackgroundImageProsessingHandler = new Handler(mBackgroundImageProcessingThread.getLooper());
     }
 
     /**
@@ -161,21 +166,31 @@ public class MainFragment extends Fragment
             mFileBackgroundThread.join();
             mFileBackgroundThread = null;
             mFileBackgroundHandler = null;
+
+            mBackgroundImageProsessingHandler.removeCallbacksAndMessages(null);
+            mBackgroundImageProcessingThread.quit();
+            mBackgroundImageProcessingThread.join();
+            mBackgroundImageProcessingThread = null;
+            mBackgroundImageProsessingHandler = null;
         } catch (InterruptedException e) {
             Log.e(TAG, "stopBackgroundThread:", e);
             mFileBackgroundThread = null;
             mFileBackgroundHandler = null;
+            mBackgroundImageProcessingThread = null;
+            mBackgroundImageProsessingHandler = null;
         } catch (NullPointerException e) {
             Log.e(TAG, "stopBackgroundThread:", e);
             mFileBackgroundThread = null;
             mFileBackgroundHandler = null;
+            mBackgroundImageProcessingThread = null;
+            mBackgroundImageProsessingHandler = null;
         }
     }
 
 
     private double mCounter = 0.0;
     private int REFRESH_INTERVAL = 100; // 1 second interval
-    private double AVERAGE_COLOR;
+    private float AVERAGE_COLOR;
     private Handler mGraphUpdater = new Handler();
 
     private ViewGroup mGraphLayout;
@@ -236,7 +251,7 @@ public class MainFragment extends Fragment
         });
     }
 
-    private void updateGraph(final double yValue) {
+    private void updateGraph(final float yValue) {
         mCounter++;
         mLineGraph.addValue(mCounter, yValue);
         mGraphView.repaint();
@@ -264,34 +279,113 @@ public class MainFragment extends Fragment
                 @Override
                 public void onImageAvailable(ImageReader reader) {
 //                    Log.e(TAG, "onImageAvailable: " + count++);
-                    Image img = null;
-                    img = reader.acquireLatestImage();
+                    Image img = reader.acquireLatestImage();
                     try {
                         if (img == null) throw new NullPointerException("cannot be null");
 
-                        RectF yuvDimens = new RectF(0, 0, img.getWidth(),
-                                img.getHeight());
-                        final int PATCH_DIMEN = SCANNABLE_AREA; // pixels in YUV
-                        // Find matching square patch of pixels in YUV and JPEG output
-                        RectF tempPatch = new RectF(0, 0, PATCH_DIMEN, PATCH_DIMEN);
-                        tempPatch.offset(yuvDimens.centerX() - tempPatch.centerX(),
-                                yuvDimens.centerY() - tempPatch.centerY());
-                        Rect yuvPatch = new Rect();
-                        tempPatch.roundOut(yuvPatch);
-
-                        AVERAGE_COLOR = ImageProcessing.calculateAverageOfColor(mWantedRGBColor, yuvPatch.width(),
-                                yuvPatch.height(), yuvPatch.left, yuvPatch.top, img);
-
-                        mFileBackgroundHandler.post(mFileWriteTask);
-
+                        ImageProcessing.doThings(img, reader.getHeight(), reader.getWidth());
                     } catch (NullPointerException e) {
-                        e.printStackTrace();
+                        Log.e(TAG, "onImageAvailable: ", e);
                     } finally {
                         if (img != null)
                             img.close();
                     }
                 }
             };
+
+    private class ImageProcessor implements Runnable {
+        private final Image mImage;
+
+        public ImageProcessor(Image image) {
+            mImage = image;
+        }
+
+        @Override
+        public void run() {
+            sendImageToProcessing(mImage);
+        }
+    }
+
+    private void sendImageToProcessing(Image img) {
+        long start = System.currentTimeMillis();
+        try {
+
+            RectF yuvDimens = new RectF(0, 0, img.getWidth(),
+                    img.getHeight());
+            final int PATCH_DIMEN = SCANNABLE_AREA; // pixels in YUV
+            // Find matching square patch of pixels in YUV and JPEG output
+            RectF tempPatch = new RectF(0, 0, PATCH_DIMEN, PATCH_DIMEN);
+            tempPatch.offset(yuvDimens.centerX() - tempPatch.centerX(),
+                    yuvDimens.centerY() - tempPatch.centerY());
+            Rect yuvPatch = new Rect();
+            tempPatch.roundOut(yuvPatch);
+
+//                        AVERAGE_COLOR = ImageProcessing.calculateAverageOfColor(mWantedRGBColor, yuvPatch.width(),
+//                                yuvPatch.height(), yuvPatch.left, yuvPatch.top, img);
+            AVERAGE_COLOR = ImageProcessing.calculateAverageHueValueFromImage(yuvPatch.width(),
+                    yuvPatch.height(), yuvPatch.left, yuvPatch.top, img);
+
+
+//            //////TESTING DIFFERENT IMAGE FORMAT (PixelFormat.RGBA_8888)//////
+//
+//            Bitmap bitmap = null;
+//            try {
+//
+//                if (img != null) {
+//                    Image.Plane[] planes = img.getPlanes();
+//                    if (planes[0].getBuffer() == null) {
+//                        return;
+//                    }
+//                    int width = img.getWidth();
+//                    int height = img.getHeight();
+//                    int pixelStride = planes[0].getPixelStride();
+//                    int rowStride = planes[0].getRowStride();
+//                    int rowPadding = rowStride - pixelStride * width;
+//
+//                    int offset = 0;
+//                    ByteBuffer buffer = planes[0].getBuffer();
+//                    int reds = 0;
+//                    for (int i = 0; i < height; ++i) {
+//                        int pixel = 0;
+//                        for (int j = 0; j < width; ++j) {
+//                            pixel |= (buffer.get(offset) & 0xff) << 16;     // R
+//                            pixel |= (buffer.get(offset + 1) & 0xff) << 8;  // G
+//                            pixel |= (buffer.get(offset + 2) & 0xff);       // B
+////                            pixel |= (buffer.get(offset + 3) & 0xff) << 24; // A
+//                            offset += pixelStride;
+//                        }
+//                        offset += rowPadding;
+//                        reds += pixel;
+//                    }
+//                    Log.d(TAG, "sendImageToProcessing: " + Color.red(reds / (height*width)));
+//
+//                    img.close();
+//                }
+//
+//            } catch (Exception e) {
+//                e.printStackTrace();
+//            } finally {
+//                if (null != bitmap) {
+//                    bitmap.recycle();
+//                }
+//                if (null != img) {
+//                    img.close();
+//                }
+//            }
+
+
+            mFileBackgroundHandler.post(mFileWriteTask);
+
+        } catch (NullPointerException e) {
+            e.printStackTrace();
+        } finally {
+            if (img != null)
+                img.close();
+            if ((System.currentTimeMillis() - start) >= 33) {
+                Log.e(TAG, "Missed photo");
+            }
+        }
+    }
 
 
     @Override

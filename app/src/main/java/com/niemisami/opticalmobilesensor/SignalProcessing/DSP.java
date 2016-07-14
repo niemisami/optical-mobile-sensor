@@ -27,8 +27,8 @@ public class DSP {
         return sumWeightedInstances / sumInstances;
     }
 
-    public static double getAverage(int[] array) {
-        double sum = 0.0;
+    public static float getAverage(int[] array) {
+        float sum = 0.0f;
         for (int i = 0; i < array.length; i++) {
             sum += array[i];
         }

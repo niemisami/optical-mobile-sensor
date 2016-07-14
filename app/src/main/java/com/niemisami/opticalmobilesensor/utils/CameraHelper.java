@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.graphics.ImageFormat;
 import android.graphics.Matrix;
+import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.SurfaceTexture;
@@ -61,6 +62,8 @@ public class CameraHelper {
     private ImageReader mImageReader;
     private AutoFitTextureView mTextureView;
     private static final int sImageFormat = ImageFormat.YUV_420_888;
+//    private static final int sImageFormat = ImageFormat.JPEG;
+//    private static final int sImageFormat = ImageFormat.FLEX_RGB_888;
     private ImageReader.OnImageAvailableListener mOnImageAvailableListener;
 
 
@@ -318,16 +321,30 @@ public class CameraHelper {
 
                 // For still image captures, we use the largest available size.
                 List<Size> outputSizes = Arrays.asList(map.getOutputSizes(sImageFormat));
+                Size fittest = null;
+                for(Size size : outputSizes) {
+                    if(size.getWidth() == 640 || size.getHeight() == 640) {
+                        fittest = size;
+                        Log.d(TAG, "setUpCameraOutputs: found fit");
+                        break;
+                    }
+                }
+                if (fittest == null) {
+                    Size largest = Collections.max(outputSizes, new CompareSizesByArea());
+                    Log.d(TAG, "setUpCameraOutputs: found fit");
+                    fittest = new Size(largest.getWidth()/16, largest.getWidth()/16);
+                }
 
-                Size largest = Collections.max(outputSizes, new CompareSizesByArea());
 
-                mImageReader = ImageReader.newInstance(largest.getWidth() / 16, largest.getWidth() / 16, sImageFormat, 2);
+//                mHeight = largest.getWidth() / 16;
+                mImageReader = ImageReader.newInstance(fittest.getWidth(), fittest.getHeight(), sImageFormat, 2);
+//                mImageReader = ImageReader.newInstance(largest.getWidth() / 16, largest.getWidth() / 16, PixelFormat.RGBA_8888, 2);
                 mImageReader.setOnImageAvailableListener(mOnImageAvailableListener, mCameraBackgroundHandler);
 
                 // Danger, W.R.! Attempting to use too large a preview size could exceed the camera
                 // bus' bandwidth limitation, resulting in gorgeous previews but the storage of
                 // garbage capture data.
-                mPreviewSize = chooseOptimalSize(map.getOutputSizes(SurfaceTexture.class), width, height, largest);
+                mPreviewSize = chooseOptimalSize(map.getOutputSizes(SurfaceTexture.class), width, height, fittest);
 //                mPreviewSize = new Size(144, 144);
                 Log.e(TAG, "WIDTH: " + mPreviewSize.getWidth() + " HEIGHT: " + mPreviewSize.getHeight());
                 // We fit the aspect ratio of TextureView to the size of preview we picked.
