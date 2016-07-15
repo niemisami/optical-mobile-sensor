@@ -266,7 +266,7 @@ public class ImageProcessing {
         return averageColor / length;
     }
 
-    private static float[] rgbToHSV(int[] mRgbBuffer) {
+    public static float[] rgbToHSV(int[] mRgbBuffer) {
         int reds = 0;
         int greens = 0;
         int blues = 0;
@@ -332,6 +332,20 @@ public class ImageProcessing {
                         ((b >> 10) & 0xff);
             }
         }
+    }
+
+    public static void averagingColorArrayToRGBChannels(int[] colorArray, float[] rgb) {
+        float reds = 0f;
+        float greens = 0f;
+        float blues = 0f;
+        for (int color : colorArray) {
+            reds += Color.red(color);
+            greens += Color.green(color);
+            blues += Color.blue(color);
+        }
+        rgb[0] = reds/colorArray.length;
+        rgb[1] = greens/colorArray.length;
+        rgb[2] = blues/colorArray.length;
     }
 
 
