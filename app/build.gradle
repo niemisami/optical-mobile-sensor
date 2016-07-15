@@ -11,6 +11,10 @@ android {
         versionCode 1
         versionName "1.0"
 
+        renderscriptTargetApi 21
+        renderscriptSupportModeEnabled false
+
+
     }
     buildTypes {
         release {

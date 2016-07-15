@@ -34,6 +34,19 @@ public class ColorAverageFileWriter extends FileBuilder {
         }
     }
 
+    public void writeArray(float[] array, long timestamp) {
+        try {
+            StringBuilder sb = new StringBuilder();
+            for (float number : array) {
+                sb.append(number).append(' ');
+            }
+            sb.append(timestamp).append("\r\n");
+            bufferedOutputStream.write((sb.toString()).getBytes());
+        } catch (IOException e) {
+            Log.e(TAG, "write: ", e);
+        }
+    }
+
     public void write(Number number) {
         try {
             bufferedOutputStream.write((number + "\r\n").getBytes());

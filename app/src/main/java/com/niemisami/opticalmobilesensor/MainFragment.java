@@ -55,7 +55,29 @@ public class MainFragment extends Fragment
     private Handler mFileBackgroundHandler, mBackgroundImageProsessingHandler;
 
     private AutoFitTextureView mTextureView;
+    private CameraHelper.OnFrameProcessedListener mOnFrameProcessedListener = new CameraHelper.OnFrameProcessedListener() {
+        @Override
+        public void onFrameArrayInt(int[] outBuffer, long timestamp) {
 
+            mFileBackgroundHandler.post(createFileWriterRunnable(outBuffer, timestamp));
+            float averageColorSum = 0.0f;
+            for (int color : outBuffer) {
+                switch (color) {
+                    case Color.RED:
+                        averageColorSum += Color.red(color);
+                        break;
+                    case Color.GREEN:
+                        averageColorSum += Color.green(color);
+                        break;
+                    case Color.BLUE:
+                        averageColorSum += Color.blue(color);
+                        break;
+                }
+            }
+
+            AVERAGE_COLOR = averageColorSum / outBuffer.length;
+        }
+    };
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
@@ -65,10 +87,10 @@ public class MainFragment extends Fragment
 
         mTextureView = new AutoFitTextureView(getActivity());
 //        ViewGroup.LayoutParams layoutParams = new ViewGroup.LayoutParams(128, 96);
-        ViewGroup.LayoutParams layoutParams = new ViewGroup.LayoutParams(144,144);
+        ViewGroup.LayoutParams layoutParams = new ViewGroup.LayoutParams(144, 144);
         mTextureView.setLayoutParams(layoutParams);
         final RelativeLayout layout = (RelativeLayout) rootView.findViewById(R.id.fragment_decoder_layout);
-        mCameraHelper = new CameraHelper(getActivity(), mTextureView, mOnImageAvailableListener);
+        mCameraHelper = new CameraHelper(getActivity(), mTextureView, mOnFrameProcessedListener);
 
         new Handler().postDelayed(new Runnable() {
             @Override
@@ -266,12 +288,23 @@ public class MainFragment extends Fragment
     };
 
     private Runnable mFileWriteTask = new Runnable() {
+
         @Override
         public void run() {
-            mColorWriter.write(AVERAGE_COLOR);
         }
     };
 
+    private Runnable createFileWriterRunnable(final int[] colorArray, final long timestamp) {
+        Runnable task = new Runnable() {
+            @Override
+            public void run() {
+                float[] averageRGBColors = new float[3];
+                ImageProcessing.averagingColorArrayToRGBChannels(colorArray, averageRGBColors);
+                mColorWriter.writeArray(averageRGBColors, timestamp);
+            }
+        };
+        return task;
+    }
 
     private final ImageReader.OnImageAvailableListener mOnImageAvailableListener =
             new ImageReader.OnImageAvailableListener() {

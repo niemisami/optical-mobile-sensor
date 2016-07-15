@@ -2,6 +2,7 @@ package com.niemisami.opticalmobilesensor.utils;
 
 import android.app.Activity;
 import android.content.Context;
+import android.graphics.Camera;
 import android.graphics.ImageFormat;
 import android.graphics.Matrix;
 import android.graphics.PixelFormat;
@@ -21,9 +22,13 @@ import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.ImageReader;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.renderscript.Allocation;
+import android.renderscript.RenderScript;
 import android.util.Log;
 import android.util.Size;
 import android.view.Surface;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 import android.view.Window;
 import android.widget.Toast;
 
@@ -62,9 +67,12 @@ public class CameraHelper {
     private ImageReader mImageReader;
     private AutoFitTextureView mTextureView;
     private static final int sImageFormat = ImageFormat.YUV_420_888;
+    private RgbConversion mConversionScript;
+    private RenderScript mRenderScript;
 //    private static final int sImageFormat = ImageFormat.JPEG;
 //    private static final int sImageFormat = ImageFormat.FLEX_RGB_888;
     private ImageReader.OnImageAvailableListener mOnImageAvailableListener;
+    private OnFrameProcessedListener mOnFrameProcessedListener;
 
 
     private CameraCaptureSession mCaptureSession;
@@ -78,11 +86,22 @@ public class CameraHelper {
         setOnImageAvailableListener(imageAvailableListener);
     }
 
-    private void setPreviewView(AutoFitTextureView textureView) {
-        mTextureView = textureView;
-
+    public CameraHelper(Context context, AutoFitTextureView textureView, OnFrameProcessedListener frameProcessedListener) {
+        mActivityContext = context;
+        setPreviewView(textureView);
+        setOnFrameProcessedListener(frameProcessedListener);
     }
 
+    public interface OnFrameProcessedListener {
+        void onFrameArrayInt(int[] outBuffer, long timestamp);
+    }
+    private void setPreviewView(AutoFitTextureView textureView) {
+        mTextureView = textureView;
+    }
+
+    private void setOnFrameProcessedListener(OnFrameProcessedListener frameProcessedListener) {
+        mOnFrameProcessedListener = frameProcessedListener;
+    }
     private void setOnImageAvailableListener(ImageReader.OnImageAvailableListener imageAvailableListener) {
         mOnImageAvailableListener = imageAvailableListener;
     }
@@ -256,15 +275,20 @@ public class CameraHelper {
             Log.e(TAG, "mPreviewSize.getWidth(): " + mPreviewSize.getWidth() + ", mPreviewSize.getHeight(): "
                     + mPreviewSize.getHeight());
 
-            Surface surface = new Surface(texture);
-            Surface mImageSurface = mImageReader.getSurface();
             mPreviewRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
             mPreviewRequestBuilder.set(CaptureRequest.FLASH_MODE, CameraMetadata.FLASH_MODE_TORCH);
-            mPreviewRequestBuilder.addTarget(mImageSurface);
+
+            Surface surface = new Surface(texture);
             mPreviewRequestBuilder.addTarget(surface);
 
+            Surface mImageSurface = mImageReader.getSurface();
+            mConversionScript.setOutputSurface(mImageSurface);
+
+            Surface inputSurface = mConversionScript.getInputSurface();
+            mPreviewRequestBuilder.addTarget(inputSurface);
+
             // Here, we create a CameraCaptureSession for camera preview.
-            mCameraDevice.createCaptureSession(Arrays.asList(mImageSurface, surface),
+            mCameraDevice.createCaptureSession(Arrays.asList(inputSurface, surface),
                     new CameraCaptureSession.StateCallback() {
 
                         @Override
@@ -278,8 +302,6 @@ public class CameraHelper {
                             try {
                                 // Auto focus should be continuous for camera preview.
                                 mPreviewRequestBuilder.set(CONTROL_AF_MODE, CONTROL_AF_STATE_ACTIVE_SCAN);
-                                // Flash is automatically enabled when necessary.
-//                                mPreviewRequestBuilder.set(CONTROL_AF_MODE,  CONTROL_AE_MODE_ON_ALWAYS_FLASH); // no need for flash now
 
                                 // Finally, we start displaying the camera preview.
                                 mPreviewRequest = mPreviewRequestBuilder.build();
@@ -320,31 +342,31 @@ public class CameraHelper {
                 StreamConfigurationMap map = characteristics.get(SCALER_STREAM_CONFIGURATION_MAP);
 
                 // For still image captures, we use the largest available size.
-                List<Size> outputSizes = Arrays.asList(map.getOutputSizes(sImageFormat));
-                Size fittest = null;
+
+                List<Size> outputSizes = Arrays.asList(map.getOutputSizes(Allocation.class));
+                if (outputSizes.size() == 0) {
+                    return;
+                }
+                Size fittestSize = null;
                 for(Size size : outputSizes) {
                     if(size.getWidth() == 640 || size.getHeight() == 640) {
-                        fittest = size;
+                        fittestSize = size;
                         Log.d(TAG, "setUpCameraOutputs: found fit");
                         break;
                     }
                 }
-                if (fittest == null) {
+                if (fittestSize == null) {
                     Size largest = Collections.max(outputSizes, new CompareSizesByArea());
                     Log.d(TAG, "setUpCameraOutputs: found fit");
-                    fittest = new Size(largest.getWidth()/16, largest.getWidth()/16);
+                    fittestSize = new Size(largest.getWidth()/16, largest.getWidth()/16);
                 }
 
 
-//                mHeight = largest.getWidth() / 16;
-                mImageReader = ImageReader.newInstance(fittest.getWidth(), fittest.getHeight(), sImageFormat, 2);
-//                mImageReader = ImageReader.newInstance(largest.getWidth() / 16, largest.getWidth() / 16, PixelFormat.RGBA_8888, 2);
-                mImageReader.setOnImageAvailableListener(mOnImageAvailableListener, mCameraBackgroundHandler);
+                mImageReader = ImageReader.newInstance(fittestSize.getWidth(), fittestSize.getHeight(), PixelFormat.RGBA_8888, 2);
+                createRenderScript();
+                mConversionScript = new RgbConversion(mRenderScript, fittestSize, mOnFrameProcessedListener, 0);
 
-                // Danger, W.R.! Attempting to use too large a preview size could exceed the camera
-                // bus' bandwidth limitation, resulting in gorgeous previews but the storage of
-                // garbage capture data.
-                mPreviewSize = chooseOptimalSize(map.getOutputSizes(SurfaceTexture.class), width, height, fittest);
+                mPreviewSize = chooseOptimalSize(map.getOutputSizes(SurfaceTexture.class), width, height, fittestSize);
 //                mPreviewSize = new Size(144, 144);
                 Log.e(TAG, "WIDTH: " + mPreviewSize.getWidth() + " HEIGHT: " + mPreviewSize.getHeight());
                 // We fit the aspect ratio of TextureView to the size of preview we picked.
@@ -365,6 +387,11 @@ public class CameraHelper {
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
+    }
+
+
+    private void createRenderScript() {
+        mRenderScript = RenderScript.create(mActivityContext);
     }
 
 
