@@ -52,45 +52,11 @@
                 android:theme="@style/RadioButtonTheme"/>
         </RadioGroup>
     </RelativeLayout>
-
-    <RelativeLayout
-        android:id="@+id/image_scan_size_seekbar_container"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_above="@id/radio_group_container"
-        android:layout_margin="@dimen/activity_horizontal_margin">
-
-        <TextView
-            android:id="@+id/seek_bar_progress_unit"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_alignParentEnd="true"
-            android:layout_centerVertical="true"
-            android:layout_marginStart="4dp"
-            android:text="px"/>
-
-        <TextView
-            android:id="@+id/seek_bar_progress"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_centerVertical="true"
-            android:layout_toStartOf="@id/seek_bar_progress_unit"
-            android:text="40"/>
-
-        <android.support.v7.widget.AppCompatSeekBar
-            android:id="@+id/image_scan_size_seekbar"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_toStartOf="@id/seek_bar_progress"
-            android:padding="@dimen/activity_horizontal_margin"
-            android:progress="40"/>
-
-    </RelativeLayout>
     <RelativeLayout
         android:id="@+id/graph_refresh_rate_seek_bar_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_above="@id/image_scan_size_seekbar_container"
+        android:layout_above="@id/radio_group_container"
         android:layout_margin="@dimen/activity_horizontal_margin">
 
         <TextView

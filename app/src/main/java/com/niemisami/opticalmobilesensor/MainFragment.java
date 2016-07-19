@@ -2,11 +2,7 @@ package com.niemisami.opticalmobilesensor;
 
 
 import android.graphics.Color;
-import android.graphics.Rect;
-import android.graphics.RectF;
 import android.graphics.SurfaceTexture;
-import android.media.Image;
-import android.media.ImageReader;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -49,12 +45,12 @@ public class MainFragment extends Fragment
 
     private CameraHelper mCameraHelper;
 
-    public static boolean accessGranted = true;
     private ColorAverageFileWriter mColorWriter;
     private HandlerThread mFileBackgroundThread, mBackgroundImageProcessingThread;
     private Handler mFileBackgroundHandler, mBackgroundImageProsessingHandler;
 
     private AutoFitTextureView mTextureView;
+
     private CameraHelper.OnFrameProcessedListener mOnFrameProcessedListener = new CameraHelper.OnFrameProcessedListener() {
         @Override
         public void onFrameArrayInt(int[] outBuffer, long timestamp) {
@@ -217,11 +213,9 @@ public class MainFragment extends Fragment
 
     private ViewGroup mGraphLayout;
 
-    private TextView mScannableAreaTextView, mGraphRefreshRateTextView;
-    private int SCANNABLE_AREA = 40;
+    private TextView mGraphRefreshRateTextView;
 
     private ImageView mFlashIcon;
-    private SwitchCompat mFlashSwitch;
 
 
     private void initGraph(View view) {
@@ -239,10 +233,6 @@ public class MainFragment extends Fragment
     }
 
     private void initSeekBar(View view) {
-        mScannableAreaTextView = (TextView) view.findViewById(R.id.seek_bar_progress);
-        AppCompatSeekBar scanAreaSeekBar = (AppCompatSeekBar) view.findViewById(R.id.image_scan_size_seekbar);
-        scanAreaSeekBar.setOnSeekBarChangeListener(mOnScanAreaSeekBarChangeListener);
-
         mGraphRefreshRateTextView = (TextView) view.findViewById(R.id.graph_refresh_rate_progress);
         AppCompatSeekBar graphRefreshRateSeekBar = (AppCompatSeekBar) view.findViewById(R.id.graph_refresh_rate_seek_bar);
         graphRefreshRateSeekBar.setOnSeekBarChangeListener(mOnRefreshRateSeekBarChangeListener);
@@ -257,7 +247,7 @@ public class MainFragment extends Fragment
         mFlashIcon = (ImageView) view.findViewById(R.id.flash_icon);
         mFlashIcon.setImageLevel(1);
 
-        mFlashSwitch = (SwitchCompat) view.findViewById(R.id.flash_toggle_switch);
+        SwitchCompat mFlashSwitch = (SwitchCompat) view.findViewById(R.id.flash_toggle_switch);
         mFlashSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
@@ -287,13 +277,6 @@ public class MainFragment extends Fragment
         }
     };
 
-    private Runnable mFileWriteTask = new Runnable() {
-
-        @Override
-        public void run() {
-        }
-    };
-
     private Runnable createFileWriterRunnable(final int[] colorArray, final long timestamp) {
         Runnable task = new Runnable() {
             @Override
@@ -305,121 +288,6 @@ public class MainFragment extends Fragment
         };
         return task;
     }
-
-    private final ImageReader.OnImageAvailableListener mOnImageAvailableListener =
-            new ImageReader.OnImageAvailableListener() {
-
-                @Override
-                public void onImageAvailable(ImageReader reader) {
-//                    Log.e(TAG, "onImageAvailable: " + count++);
-                    Image img = reader.acquireLatestImage();
-                    try {
-                        if (img == null) throw new NullPointerException("cannot be null");
-                        AVERAGE_COLOR = ImageProcessing.calculateAverageColor(mWantedRGBColor, img, reader.getHeight(), reader.getWidth());
-                        mFileBackgroundHandler.post(mFileWriteTask);
-                    } catch (NullPointerException e) {
-                        Log.e(TAG, "onImageAvailable: ", e);
-                    } finally {
-                        if (img != null)
-                            img.close();
-                    }
-                }
-            };
-
-    private class ImageProcessor implements Runnable {
-        private final Image mImage;
-
-        public ImageProcessor(Image image) {
-            mImage = image;
-        }
-
-        @Override
-        public void run() {
-            sendImageToProcessing(mImage);
-        }
-    }
-
-    private void sendImageToProcessing(Image img) {
-        long start = System.currentTimeMillis();
-        try {
-
-            RectF yuvDimens = new RectF(0, 0, img.getWidth(),
-                    img.getHeight());
-            final int PATCH_DIMEN = SCANNABLE_AREA; // pixels in YUV
-            // Find matching square patch of pixels in YUV and JPEG output
-            RectF tempPatch = new RectF(0, 0, PATCH_DIMEN, PATCH_DIMEN);
-            tempPatch.offset(yuvDimens.centerX() - tempPatch.centerX(),
-                    yuvDimens.centerY() - tempPatch.centerY());
-            Rect yuvPatch = new Rect();
-            tempPatch.roundOut(yuvPatch);
-
-//                        AVERAGE_COLOR = ImageProcessing.calculateAverageOfColor(mWantedRGBColor, yuvPatch.width(),
-//                                yuvPatch.height(), yuvPatch.left, yuvPatch.top, img);
-            AVERAGE_COLOR = ImageProcessing.calculateAverageHueValueFromImage(yuvPatch.width(),
-                    yuvPatch.height(), yuvPatch.left, yuvPatch.top, img);
-
-
-//            //////TESTING DIFFERENT IMAGE FORMAT (PixelFormat.RGBA_8888)//////
-//
-//            Bitmap bitmap = null;
-//            try {
-//
-//                if (img != null) {
-//                    Image.Plane[] planes = img.getPlanes();
-//                    if (planes[0].getBuffer() == null) {
-//                        return;
-//                    }
-//                    int width = img.getWidth();
-//                    int height = img.getHeight();
-//                    int pixelStride = planes[0].getPixelStride();
-//                    int rowStride = planes[0].getRowStride();
-//                    int rowPadding = rowStride - pixelStride * width;
-//
-//                    int offset = 0;
-//                    ByteBuffer buffer = planes[0].getBuffer();
-//                    int reds = 0;
-//                    for (int i = 0; i < height; ++i) {
-//                        int pixel = 0;
-//                        for (int j = 0; j < width; ++j) {
-//                            pixel |= (buffer.get(offset) & 0xff) << 16;     // R
-//                            pixel |= (buffer.get(offset + 1) & 0xff) << 8;  // G
-//                            pixel |= (buffer.get(offset + 2) & 0xff);       // B
-////                            pixel |= (buffer.get(offset + 3) & 0xff) << 24; // A
-//                            offset += pixelStride;
-//                        }
-//                        offset += rowPadding;
-//                        reds += pixel;
-//                    }
-//                    Log.d(TAG, "sendImageToProcessing: " + Color.red(reds / (height*width)));
-//
-//                    img.close();
-//                }
-//
-//            } catch (Exception e) {
-//                e.printStackTrace();
-//            } finally {
-//                if (null != bitmap) {
-//                    bitmap.recycle();
-//                }
-//                if (null != img) {
-//                    img.close();
-//                }
-//            }
-
-
-            mFileBackgroundHandler.post(mFileWriteTask);
-
-        } catch (NullPointerException e) {
-            e.printStackTrace();
-        } finally {
-            if (img != null)
-                img.close();
-            if ((System.currentTimeMillis() - start) >= 33) {
-                Log.e(TAG, "Missed photo");
-            }
-        }
-    }
-
 
     @Override
     public void onCheckedChanged(RadioGroup group, int checkedId) {
@@ -445,26 +313,6 @@ public class MainFragment extends Fragment
         reinitGraph();
     }
 
-
-    public SeekBar.OnSeekBarChangeListener mOnScanAreaSeekBarChangeListener = new SeekBar.OnSeekBarChangeListener() {
-        @Override
-        public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-            if (fromUser && progress > 1) {
-                mScannableAreaTextView.setText(Integer.toString(progress));
-            }
-        }
-
-        @Override
-        public void onStartTrackingTouch(SeekBar seekBar) {
-        }
-
-        @Override
-        public void onStopTrackingTouch(SeekBar seekBar) {
-            if (seekBar.getProgress() > 1) {
-                SCANNABLE_AREA = seekBar.getProgress();
-            }
-        }
-    };
     public SeekBar.OnSeekBarChangeListener mOnRefreshRateSeekBarChangeListener = new SeekBar.OnSeekBarChangeListener() {
         @Override
         public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
@@ -486,6 +334,6 @@ public class MainFragment extends Fragment
     };
 
     private void initFileWriter() {
-        mColorWriter = new ColorAverageFileWriter(getActivity(), "testing");
+        mColorWriter = new ColorAverageFileWriter(getActivity(), "rgb");
     }
 }
