@@ -74,15 +74,14 @@
             android:layout_height="wrap_content"
             android:layout_centerVertical="true"
             android:layout_toStartOf="@id/graph_refresh_rate_progress_unit"
-            android:text="24"/>
+            android:text="30"/>
 
         <android.support.v7.widget.AppCompatSeekBar
             android:id="@+id/graph_refresh_rate_seek_bar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_toStartOf="@id/graph_refresh_rate_progress"
-            android:padding="@dimen/activity_horizontal_margin"
-            android:progress="40"/>
+            android:padding="@dimen/activity_horizontal_margin"/>
 
     </RelativeLayout>
 

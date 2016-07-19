@@ -48,30 +48,35 @@ public class MainFragment extends Fragment
     private ColorAverageFileWriter mColorWriter;
     private HandlerThread mFileBackgroundThread, mBackgroundImageProcessingThread;
     private Handler mFileBackgroundHandler, mBackgroundImageProsessingHandler;
-
     private AutoFitTextureView mTextureView;
+
+
+    private double mCounter = 0.0;
+    private int REFRESH_INTERVAL = 1000 / 24; // 24 fps
+    private float AVERAGE_COLOR;
+    private Handler mGraphUpdater = new Handler();
+    private ViewGroup mGraphLayout;
+    private TextView mGraphRefreshRateTextView;
+    private ImageView mFlashIcon;
 
     private CameraHelper.OnFrameProcessedListener mOnFrameProcessedListener = new CameraHelper.OnFrameProcessedListener() {
         @Override
         public void onFrameArrayInt(int[] outBuffer, long timestamp) {
 
             mFileBackgroundHandler.post(createFileWriterRunnable(outBuffer, timestamp));
-            float averageColorSum = 0.0f;
-            for (int color : outBuffer) {
-                switch (color) {
-                    case Color.RED:
-                        averageColorSum += Color.red(color);
-                        break;
-                    case Color.GREEN:
-                        averageColorSum += Color.green(color);
-                        break;
-                    case Color.BLUE:
-                        averageColorSum += Color.blue(color);
-                        break;
-                }
+            float[] averageRGBColors = new float[3];
+            ImageProcessing.averagingColorArrayToRGBChannels(outBuffer, averageRGBColors);
+            switch (mWantedRGBColor) {
+                case Color.RED:
+                    AVERAGE_COLOR = averageRGBColors[0];
+                    break;
+                case Color.GREEN:
+                    AVERAGE_COLOR = averageRGBColors[1];
+                    break;
+                case Color.BLUE:
+                    AVERAGE_COLOR = averageRGBColors[2];
+                    break;
             }
-
-            AVERAGE_COLOR = averageColorSum / outBuffer.length;
         }
     };
 
@@ -206,18 +211,6 @@ public class MainFragment extends Fragment
     }
 
 
-    private double mCounter = 0.0;
-    private int REFRESH_INTERVAL = 100; // 1 second interval
-    private float AVERAGE_COLOR;
-    private Handler mGraphUpdater = new Handler();
-
-    private ViewGroup mGraphLayout;
-
-    private TextView mGraphRefreshRateTextView;
-
-    private ImageView mFlashIcon;
-
-
     private void initGraph(View view) {
         mLineGraph = new LineGraphView(mWantedRGBColor);
         mGraphView = mLineGraph.getView(getActivity());
@@ -235,6 +228,7 @@ public class MainFragment extends Fragment
     private void initSeekBar(View view) {
         mGraphRefreshRateTextView = (TextView) view.findViewById(R.id.graph_refresh_rate_progress);
         AppCompatSeekBar graphRefreshRateSeekBar = (AppCompatSeekBar) view.findViewById(R.id.graph_refresh_rate_seek_bar);
+        graphRefreshRateSeekBar.setProgress(100);
         graphRefreshRateSeekBar.setOnSeekBarChangeListener(mOnRefreshRateSeekBarChangeListener);
     }
 
@@ -316,8 +310,11 @@ public class MainFragment extends Fragment
     public SeekBar.OnSeekBarChangeListener mOnRefreshRateSeekBarChangeListener = new SeekBar.OnSeekBarChangeListener() {
         @Override
         public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-            if (fromUser && progress > 1) {
-                mGraphRefreshRateTextView.setText(Integer.toString(progress));
+            if (fromUser && progress > 0) {
+                long progressValue = Math.round(progress * 0.3);
+                mGraphRefreshRateTextView.setText(Long.toString(progressValue));
+            } else {
+                mGraphRefreshRateTextView.setText("1");
             }
         }
 
@@ -327,8 +324,11 @@ public class MainFragment extends Fragment
 
         @Override
         public void onStopTrackingTouch(SeekBar seekBar) {
-            if (seekBar.getProgress() > 1) {
-                REFRESH_INTERVAL = 1000 / seekBar.getProgress();
+            if (seekBar.getProgress() > 0) {
+                long progressValue = Math.round(seekBar.getProgress() * 0.3);
+                REFRESH_INTERVAL = 1000 / (int) progressValue;
+            } else {
+                REFRESH_INTERVAL = 1000;
             }
         }
     };
